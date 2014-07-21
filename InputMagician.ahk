@@ -1,16 +1,18 @@
 #NoEnv
 #SingleInstance force
-;~ SetKeyDelay, -1
+SetKeyDelay, -1
 ;~ SendMode, play
-inputMagi.Add("s","在吗")
-;~ inputMagi.Add("?","吃了吗")
-;~ inputMagi.Add("~","呵呵")
-;~ inputMagi.Add("^","哈哈")
-;~ inputMagi.Add("$?","在吗，吃了吗")
-;~ inputMagi.Add("$^","在吗， 哈哈")
+SetFormat, Integer, hex
+inputMagi.Add(".l",".lcomm`t" )
+inputMagi.Add(".o",".org`t")
 inputMagi.AddReg("(\d+)\*(\d+)","$1*$2","",1)
+inputMagi.AddReg("(x|y)=&?([\w\d]+)","ldb`text,$2@H`nldb`t$1l,$2@L","",0)
+inputMagi.AddReg("ba=\[(x|y)(\+)?\]?","ld`ta,[$1]$2`nld`tb,00h","",0)
+inputMagi.AddReg("([\w\d]+)=(.+)","ldb`t`text,$1`nld`t`t[x],$2","",0)
+inputMagi.AddReg("(1|0)(1|0)(1|0)(1|0)(1|0)","$x '000$1$2$3$4$5","",1)
 inputMagi.Start()
 Return
+
 
 /* example
 	
@@ -30,21 +32,15 @@ Return
 inputMagi.AddReg("(\d+)\*(\d+)","$1*$2","",1)
 src:要检测的输入
 des:转换的输出
-regSetting:正则设置如i
+regSetting:正则设置如 "i)"
 eval:是否使用eval()来处理输出
 AddReg(src,des,regSetting="",eval=0)
 */
 
-$Tab::inputMagi.Output()
+$`::inputMagi.Output()
+~BS::inputMagi.keys:=SubStr(inputMagi.keys,1,StrLen(inputMagi.keys)-1)
 
-;~ $ -> 在吗
-;~ ? -> 吃了吗
-;~ ~ -> 呵呵
-;~ ^ -> 哈哈
-;~ $? -> 在吗，吃了吗
-;~ $^ -> 在吗， 哈哈
-
-F5::ExitApp
+F6::Suspend
 
 class inputMagi
 {
@@ -59,16 +55,16 @@ class inputMagi
 		this.indexMax++
 		this.Grimoire[this.indexMax,"src"]:=src
 		this.Grimoire[this.indexMax,"des"]:=des
-		this.indexMax:=this.Grimoire.MaxIndex()
+		this.Grimoire.MaxIndex:=this.indexMax
 	}
 	
 	AddReg(src,des,regSetting="",eval=0)
 	{
 		this.indexRegMax++
-		this.Majutsu[this.indexMax,"src"]:=regSetting ")" src "$"
-		this.Majutsu[this.indexMax,"des"]:=des
-		this.Majutsu[this.indexMax,"eval"]:=eval
-		this.indexRegMax:=this.Majutsu.MaxIndex()
+		this.Majutsu[this.indexRegMax,"src"]:=regSetting ")" src "$"
+		this.Majutsu[this.indexRegMax,"des"]:=des
+		this.Majutsu[this.indexRegMax,"eval"]:=eval
+		this.Majutsu.MaxIndex:=this.indexRegMax
 	}
 	
 	Delete(src)
@@ -79,6 +75,7 @@ class inputMagi
 			{
 				this.Grimoire.Remove(A_Index)
 				this.indexMax-=1
+				this.Grimoire.MaxIndex:=this.indexMax
 				Break
 			}
 		}
@@ -92,6 +89,7 @@ class inputMagi
 			{
 				this.Majutsu.Remove(A_Index)
 				this.indexRegMax-=1
+				this.Majutsu.MaxIndex:=this.indexRegMax
 				Break
 			}
 		}
@@ -107,7 +105,7 @@ class inputMagi
 			Break
 			Input, key, I V L1, 
 			this.keys:=SubStr(this.keys . key,-19)
-			ToolTip, % this.keys
+;~ 			ToolTip, % this.keys
 ;~ 			SetTimer, killtooltip, -1000
 		}
 	}
@@ -121,7 +119,7 @@ class inputMagi
 	{
 		keys:=this.keys
 		spell_1:=SubStr(keys,-1)
-		Loop, % this.Grimoire.MaxIndex()
+		Loop, % this.Grimoire.MaxIndex
 		{
 			temp_Index:=A_Index
 			IfInString, spell_1, % this.Grimoire[temp_Index,"src"]
@@ -135,8 +133,8 @@ class inputMagi
 			temp_Index:=0
 		}
 		
-		If(temp_Index=0 And this.Majutsu.MaxIndex())
-		Loop, % this.Majutsu.MaxIndex()
+		If(temp_Index=0 And this.Majutsu.MaxIndex)
+		Loop, % this.Majutsu.MaxIndex
 		{
 			temp_Index:=A_Index
 			If(FoundPos:=RegExMatch(keys,"O" this.Majutsu[temp_Index,"src"],match))
@@ -144,11 +142,9 @@ class inputMagi
 			NewStr:=RegExReplace(match.Value(),this.Majutsu[temp_Index,"src"],this.Majutsu[temp_Index,"des"])
 			If(this.Majutsu[temp_Index,"eval"])
 			NewStr:=eval(NewStr)
-			
+;~ 			MsgBox, % "`nFoundPos:" FoundPos "`nkeys:" keys "`nMaju:" this.Majutsu[temp_Index,"src"] "`nNewStr:" NewStr
 			SendInput, % "{BS " match.Len() "}" NewStr
-			
 			this.keys:=""
-			
 			Break
 			}
 			temp_Index:=0
