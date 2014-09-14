@@ -1,47 +1,28 @@
-#NoEnv
-#SingleInstance force
-SetKeyDelay, -1
-;~ SendMode, play
-SetFormat, Integer, hex
-inputMagi.Add(".l",".lcomm`t" )
-inputMagi.Add(".o",".org`t")
-inputMagi.AddReg("(\d+)\*(\d+)","$1*$2","",1)
-inputMagi.AddReg("(x|y)=&?([\w\d]+)","ldb`text,$2@H`nldb`t$1l,$2@L","",0)
-inputMagi.AddReg("ba=\[(x|y)(\+)?\]?","ld`ta,[$1]$2`nld`tb,00h","",0)
-inputMagi.AddReg("([\w\d]+)=(.+)","ldb`t`text,$1`nld`t`t[x],$2","",0)
-inputMagi.AddReg("(1|0)(1|0)(1|0)(1|0)(1|0)","$x '000$1$2$3$4$5","",1)
-inputMagi.Start()
-Return
+﻿; 2014.9.14 Nigh
+; Beta 0
+; jiyucheng007#gmail.com
 
 
-/* example
-	
-	inputMagi.Add("$","在吗")
-	inputMagi.Add("?","吃了吗")
-	inputMagi.Add("~","呵呵")
-	inputMagi.Add("^","哈哈")
-	inputMagi.Add("$?","在吗，吃了吗")
-	inputMagi.Add("$^","在吗， 哈哈")
-	inputMagi.AddReg("(\d+)\*(\d+)","$1*$2","",1)
-	inputMagi.Start()
-	Return
-	
-*/
+; TODO:
+; AddReg 警告非法设置
+; 一个包含inputMagi全部功能的小应用
+
+; 原型
+; inputMagi.AddReg(正则捕获,正则替换,正则设置(不了解置空即可),预处理函数,后处理函数)
+; 其中，预处理函数与后处理函数的输入均为正则的捕获对象
+; 不了解正则捕获对象的用户，请参阅帮助手册的RegExMatch()项下的Match Object条目
 
 /*
-inputMagi.AddReg("(\d+)\*(\d+)","$1*$2","",1)
+识别的优先级按照Add的顺序，先Add的先识别
+inputMagi.AddReg("(\d+)\*(\d+)","$1*$2","",Func(fEval))
+inputMagi.AddReg(src,des,regSetting,FuncBefore,FuncAfter)
 src:要检测的输入
 des:转换的输出
 regSetting:正则设置如 "i)"
-eval:是否使用eval()来处理输出
-AddReg(src,des,regSetting="",eval=0)
+FuncBefore:使用自定义函数来处理输出，格式为Output:=FuncBefore(Input)，输入为正则捕获对象，输出为处理结果
+FuncAfter:在替换结束后执行的自定义函数，输入为正则捕获对象
+AddReg(src,des,regSetting="",FuncBefore="",FuncAfter="")
 */
-
-$`::inputMagi.Output()
-~BS::inputMagi.keys:=SubStr(inputMagi.keys,1,StrLen(inputMagi.keys)-1)
-
-F6::Suspend
-
 class inputMagi
 {
 	static keys
@@ -58,12 +39,21 @@ class inputMagi
 		this.Grimoire.MaxIndex:=this.indexMax
 	}
 	
-	AddReg(src,des,regSetting="",eval=0)
+	AddReg(src,des,regSetting="",Fun1="",Fun2="")
 	{
+		if(Fun1!="" and !IsFunc(Fun1)){
+			Msgbox, 错误的FuncBefore设置。(%src% In [Function]AddReg)
+			Return
+		}
+		if(Fun2!="" and !IsFunc(Fun2)){
+			Msgbox, 错误的FuncAfter设置。(%src% In [Function]AddReg)
+			Return
+		}
 		this.indexRegMax++
 		this.Majutsu[this.indexRegMax,"src"]:=regSetting ")" src "$"
 		this.Majutsu[this.indexRegMax,"des"]:=des
-		this.Majutsu[this.indexRegMax,"eval"]:=eval
+		this.Majutsu[this.indexRegMax,"FuncBefore"]:=Fun1
+		this.Majutsu[this.indexRegMax,"FuncAfter"]:=Fun2
 		this.Majutsu.MaxIndex:=this.indexRegMax
 	}
 	
@@ -98,23 +88,43 @@ class inputMagi
 	Start()
 	{
 		this.exit:=0
-		
+
+		if(this.outputKey="")
+		{
+			Msgbox, % "未设置输出触发按键" this.outputKey "，未能启动"
+			Return
+		}
+		Hotkey, ~BS, __backSpace, On
 		Loop
 		{
 			If(this.exit)
 			Break
 			Input, key, I V L1, 
-			this.keys:=SubStr(this.keys . key,-19)
+			if(key=this.outputKey){
+				this.Output()
+			}else{
+				this.keys:=SubStr(this.keys . key,-19)
+			}
 ;~ 			ToolTip, % this.keys
 ;~ 			SetTimer, killtooltip, -1000
 		}
+		Return
+
+		__backSpace:
+		inputMagi.keys:=SubStr(inputMagi.keys,1,StrLen(inputMagi.keys)-1)
+		Return
 	}
-	
+
 	Stop()
 	{
 		this.exit:=1
 	}
 	
+	SetOutputKey(key)
+	{
+		this.outputKey:=key
+	}
+
 	Output()
 	{
 		keys:=this.keys
@@ -125,8 +135,7 @@ class inputMagi
 			IfInString, spell_1, % this.Grimoire[temp_Index,"src"]
 			{
 ;~ 				Loop, % StrLen(this.Grimoire[temp_Index,"src"])
-				SendInput, % "{BS " StrLen(this.Grimoire[temp_Index,"src"]) "}" this.Grimoire[temp_Index,"des"]
-				
+				SendInput, % "{BS " StrLen(this.Grimoire[temp_Index,"src"])+1 "}" this.Grimoire[temp_Index,"des"]
 				this.keys:=""
 				Break
 			}
@@ -139,19 +148,27 @@ class inputMagi
 			temp_Index:=A_Index
 			If(FoundPos:=RegExMatch(keys,"O" this.Majutsu[temp_Index,"src"],match))
 			{
-			NewStr:=RegExReplace(match.Value(),this.Majutsu[temp_Index,"src"],this.Majutsu[temp_Index,"des"])
-			If(this.Majutsu[temp_Index,"eval"])
-			NewStr:=eval(NewStr)
-;~ 			MsgBox, % "`nFoundPos:" FoundPos "`nkeys:" keys "`nMaju:" this.Majutsu[temp_Index,"src"] "`nNewStr:" NewStr
-			SendInput, % "{BS " match.Len() "}" NewStr
-			this.keys:=""
-			Break
+				NewStr:=RegExReplace(match.Value(),this.Majutsu[temp_Index,"src"],this.Majutsu[temp_Index,"des"])
+				If(isFunc(this.Majutsu[temp_Index,"FuncBefore"])){
+					NewStr:=(this.Majutsu[temp_Index,"FuncBefore"]).(match)
+				}
+				SendInput, % "{BS " match.Len()+1 "}" NewStr
+				If(isFunc(this.Majutsu[temp_Index,"FuncAfter"])){
+					this.Majutsu[temp_Index,"FuncAfter"].(match)
+				}
+				this.keys:=""
+				Break
 			}
 			temp_Index:=0
 		}
 		
 		If(temp_Index=0)
-		SendEvent, {Tab}
+		SendEvent, {`}
+	}
+
+	Version()
+	{
+		Return, "beta 0"
 	}
 
 	_pushClip()
