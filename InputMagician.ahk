@@ -2,6 +2,7 @@
 ; Beta 0
 ; jiyucheng007#gmail.com
 
+; Git: https://github.com/Nigh/InputMagician
 
 ; TODO:
 ; AddReg 警告非法设置
@@ -105,8 +106,6 @@ class inputMagi
 			}else{
 				this.keys:=SubStr(this.keys . key,-19)
 			}
-;~ 			ToolTip, % this.keys
-;~ 			SetTimer, killtooltip, -1000
 		}
 		Return
 
@@ -129,6 +128,7 @@ class inputMagi
 	{
 		keys:=this.keys
 		spell_1:=SubStr(keys,-1)
+		temp_Index:=0
 		Loop, % this.Grimoire.MaxIndex
 		{
 			temp_Index:=A_Index
@@ -142,7 +142,7 @@ class inputMagi
 			temp_Index:=0
 		}
 		
-		If(temp_Index=0 And this.Majutsu.MaxIndex)
+		If(!temp_Index And this.Majutsu.MaxIndex)
 		Loop, % this.Majutsu.MaxIndex
 		{
 			temp_Index:=A_Index
@@ -162,8 +162,8 @@ class inputMagi
 			temp_Index:=0
 		}
 		
-		If(temp_Index=0)
-		SendEvent, {`}
+		If(!temp_Index)
+			SendEvent, {`}
 	}
 
 	Version()
